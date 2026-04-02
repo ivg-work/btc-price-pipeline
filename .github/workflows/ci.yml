@@ -1,0 +1,48 @@
+name: CI Pipeline Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests unittest-mock
+          pip install apache-airflow==2.9.3 --constraint \
+            "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt"
+          pip install google-cloud-bigquery==3.41.0
+
+      - name: Validate DAG syntax
+        run: |
+          python dags/btc_price_pipeline.py
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v
+
+      - name: Validate docker-compose syntax
+        run: |
+          pip install docker-compose
+          docker-compose -f docker/docker-compose.yml config --quiet
+
+      - name: Validate SQL files exist
+        run: |
+          test -f sql/views/btc_hourly_analytics.sql
+          test -f sql/views/btc_daily_summary.sql
+          test -f sql/views/btc_latest.sql
+          test -f sql/views/clean_bitcoin_view.sql
+          echo "All SQL files present"
